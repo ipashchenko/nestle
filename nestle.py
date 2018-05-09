@@ -10,9 +10,11 @@ import math
 import numpy as np
 try:
     from scipy.cluster.vq import kmeans2
+    from scipy.special import logsumexp
     HAVE_KMEANS = True
 except ImportError:  # pragma: no cover
     HAVE_KMEANS = False
+    logsumexp = np.logaddexp.reduce
 
 __all__ = ["sample", "print_progress", "mean_and_cov", "resample_equal",
            "Result"]
@@ -1074,6 +1076,20 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
             logwt_old = logwt
             if ndecl > decline_factor * npoints:
                 break
+
+        # # Stopping criterion 3: Remaining posterior mass left in the live points
+        # # is some small fraction ``frac_remaining`` of currently calculated
+        # # evidence.
+        # frac_remaining = 0.001
+        # log_mean_active_l = logsumexp(active_logl) - np.log(len(active_logl))
+        # if log_mean_active_l + logvol - logz <= np.log(frac_remaining):
+        #     print("Log of evidence left = {}".format((log_mean_active_l + logvol
+        #                                               - logz)))
+        #     break
+        # else:
+        #     if not it % 10:
+        #         print("Log of frac.evidence left ="
+        #               " {}".format((log_mean_active_l + logvol - logz)))
 
         if ncall > maxcall:
             break
