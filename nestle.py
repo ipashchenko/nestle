@@ -1078,6 +1078,9 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
 
             # Stopping criterion 2: logwt has been declining for a while.
             if decline_factor is not None:
+                print("ndecl = {}, logwt={}, logwt_old={}".format(ndecl,
+                                                                  logwt,
+                                                                  logwt_old))
                 ndecl = ndecl + 1 if logwt < logwt_old else 0
                 logwt_old = logwt
                 if ndecl > decline_factor * npoints:
