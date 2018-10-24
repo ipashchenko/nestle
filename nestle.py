@@ -1008,7 +1008,9 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
 
     callback_info = {'it': 0,
                      'logz': logz,
+                     'logwt': -np.inf,
                      'active_u': active_u,
+                     'active_v': active_v,
                      'active_logl': active_logl,
                      'saved_logvol': saved_logvol,
                      'saved_logl': saved_logl,
@@ -1022,7 +1024,11 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     while it < maxiter:
         try:
             if (callback is not None) and (it > 0):
-                callback_info.update(it=it, logz=logz, active_logl=active_logl,
+                callback_info.update(it=it,
+                                     logz=logz,
+                                     logwt=logwt_old,
+                                     active_v=active_v,
+                                     active_logl=active_logl,
                                      saved_logvol=saved_logvol,
                                      saved_logl=saved_logl)
                 callback(callback_info)
