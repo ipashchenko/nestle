@@ -1012,8 +1012,10 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
                      'active_u': active_u,
                      'active_v': active_v,
                      'active_logl': active_logl,
+                     'saved_v': saved_v,
                      'saved_logvol': saved_logvol,
                      'saved_logl': saved_logl,
+                     'saved_logwt': saved_logwt,
                      'sampler': sampler}
 
     # Nested sampling loop.
@@ -1022,97 +1024,81 @@ def sample(loglikelihood, prior_transform, ndim, npoints=100,
     it = 0
     since_update = 0
     while it < maxiter:
-        try:
-            if (callback is not None) and (it > 0):
-                callback_info.update(it=it,
-                                     logz=logz,
-                                     logwt=logwt_old,
-                                     active_v=active_v,
-                                     active_logl=active_logl,
-                                     saved_logvol=saved_logvol,
-                                     saved_logl=saved_logl)
-                callback(callback_info)
+        if (callback is not None) and (it > 0):
+            callback_info.update(it=it,
+                                 logz=logz,
+                                 logwt=logwt_old,
+                                 active_v=active_v,
+                                 active_logl=active_logl,
+                                 saved_v=saved_v,
+                                 saved_logvol=saved_logvol,
+                                 saved_logl=saved_logl,
+                                 saved_logwt=saved_logwt)
+            callback(callback_info)
 
-            # worst object in collection and its weight (= volume * likelihood)
-            worst = np.argmin(active_logl)
-            logwt = logvol + active_logl[worst]
+        # worst object in collection and its weight (= volume * likelihood)
+        worst = np.argmin(active_logl)
+        logwt = logvol + active_logl[worst]
 
-            # update evidence Z and information h.
-            logz_new = np.logaddexp(logz, logwt)
-            h = (math.exp(logwt - logz_new) * active_logl[worst] +
-                 math.exp(logz - logz_new) * (h + logz) -
-                 logz_new)
-            logz = logz_new
+        # update evidence Z and information h.
+        logz_new = np.logaddexp(logz, logwt)
+        h = (math.exp(logwt - logz_new) * active_logl[worst] +
+             math.exp(logz - logz_new) * (h + logz) -
+             logz_new)
+        logz = logz_new
 
-            # Add worst object to samples.
-            saved_v.append(np.array(active_v[worst]))
-            saved_logwt.append(logwt)
-            saved_logvol.append(logvol)
-            saved_logl.append(active_logl[worst])
+        # Add worst object to samples.
+        saved_v.append(np.array(active_v[worst]))
+        saved_logwt.append(logwt)
+        saved_logvol.append(logvol)
+        saved_logl.append(active_logl[worst])
 
-            # The new likelihood constraint is that of the worst object.
-            loglstar = active_logl[worst]
+        # The new likelihood constraint is that of the worst object.
+        loglstar = active_logl[worst]
 
-            expected_vol = math.exp(-it / npoints)
-            pointvol = expected_vol / npoints
+        expected_vol = math.exp(-it / npoints)
+        pointvol = expected_vol / npoints
 
-            # Update the sampler based on the current active points.
-            if since_update >= update_interval:
-                sampler.update(pointvol)
-                since_update = 0
+        # Update the sampler based on the current active points.
+        if since_update >= update_interval:
+            sampler.update(pointvol)
+            since_update = 0
 
-            # Choose a new point from within the likelihood constraint
-            # (having logl > loglstar).
-            u, v, logl, nc = sampler.new_point(loglstar)
+        # Choose a new point from within the likelihood constraint
+        # (having logl > loglstar).
+        u, v, logl, nc = sampler.new_point(loglstar)
 
-            # replace worst point with new point
-            active_u[worst] = u
-            active_v[worst] = v
-            active_logl[worst] = logl
-            ncall += nc
-            since_update += nc
+        # replace worst point with new point
+        active_u[worst] = u
+        active_v[worst] = v
+        active_logl[worst] = logl
+        ncall += nc
+        since_update += nc
 
-            # Shrink interval
-            logvol -= 1.0 / npoints
+        # Shrink interval
+        logvol -= 1.0 / npoints
 
-            # Stopping criterion 1: estimated fractional remaining evidence
-            # below some threshold.
-            if dlogz is not None:
-                logz_remain = np.max(active_logl) - it / npoints
-                if np.logaddexp(logz, logz_remain) - logz < dlogz:
-                    break
-
-            # Stopping criterion 2: logwt has been declining for a while.
-            if decline_factor is not None:
-                print("ndecl = {}, logwt={}, logwt_old={}".format(ndecl,
-                                                                  logwt,
-                                                                  logwt_old))
-                ndecl = ndecl + 1 if logwt < logwt_old else 0
-                logwt_old = logwt
-                if ndecl > decline_factor * npoints:
-                    break
-
-            # # Stopping criterion 3: Remaining posterior mass left in the live points
-            # # is some small fraction ``frac_remaining`` of currently calculated
-            # # evidence.
-            # frac_remaining = 0.001
-            # log_mean_active_l = logsumexp(active_logl) - np.log(len(active_logl))
-            # if log_mean_active_l + logvol - logz <= np.log(frac_remaining):
-            #     print("Log of evidence left = {}".format((log_mean_active_l + logvol
-            #                                               - logz)))
-            #     break
-            # else:
-            #     if not it % 10:
-            #         print("Log of frac.evidence left ="
-            #               " {}".format((log_mean_active_l + logvol - logz)))
-
-            if ncall > maxcall:
+        # Stopping criterion 1: estimated fractional remaining evidence
+        # below some threshold.
+        if dlogz is not None:
+            logz_remain = np.max(active_logl) - it / npoints
+            if np.logaddexp(logz, logz_remain) - logz < dlogz:
                 break
 
-            it += 1
-        except KeyboardInterrupt:
-            print("Catching CTRL-C...")
-            maxcall = ncall
+        # Stopping criterion 2: logwt has been declining for a while.
+        if decline_factor is not None:
+            print("ndecl = {}, logwt={}, logwt_old={}".format(ndecl,
+                                                              logwt,
+                                                              logwt_old))
+            ndecl = ndecl + 1 if logwt < logwt_old else 0
+            logwt_old = logwt
+            if ndecl > decline_factor * npoints:
+                break
+
+        if ncall > maxcall:
+            break
+
+        it += 1
 
     # Add remaining active points.
     # After N samples have been taken out, the remaining volume is
